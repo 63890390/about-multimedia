@@ -299,10 +299,46 @@
 
 <details><summary>协程管理</summary>
 
-- st_thread_create，创建协程
-	- SrsSTCoroutine::pfn
-		- SrsSTCoroutine::cycle
-			- handler->cycle，此处handler为创建SrsSTCoroutine对象时传入的第二个参数对象，必需继承至ISrsCoroutineHandler且实现cycle函数
+- run_master
+	- initialize_st
+		- srs\_st_init
+		- st\_set_eventsys
+		- st_init
+			- \_st\_io_init，设置信号
+				- **\_st_eventsys->fd\_getlimit**
+			- **\_st\_eventsys->init**
+			- st\_thread\_create(_st_idle_thread_start, NULL, 0, 0)，创建idle协程，由其负责调度
+				- -> \_st\_idle\_thread_start
+					- **\_st_eventsys->dispatch**
+
+---
+
+- st\_netfd_open、st\_netfd\_open_socket、st\_netfd_open、st\_open
+	- **\_st\_eventsys->fd_new**
+
+---
+
+- st\_netfd_close
+	- **\_st\_eventsys->fd_close**
+
+---
+
+- st_accept、st_connect等函数
+	- st_poll
+		- **\_st\_eventsys->pollset_add**
+		- **\_st\_eventsys->pollset_del**
+
+---
+
+- trd->start <-> SrsSTCoroutine::start
+	- st\_thread_create(pfn, this, 1, 0))，this是SrsSTCoroutine对象
+		- trd->start = SrsSTCoroutine::pfn
+		- trd->arg = this
+		- \_st\_thread_main
+			- _st_thread_t *trd = _ST_CURRENT_THREAD()，得到当前协程
+			- 
+			- (*trd->start)(trd->arg)，执行协程
+				- p->cycle()，**执行SrsSTCoroutine对象的cycle函数**
 
 </details>
 
@@ -442,6 +478,36 @@
   有些老的设备，能输出HTTP的ts或FLV流，可以采集后转封装为RTMP，支持HLS输出。
 
   总之，采集的应用场景主要是“SRS拉流”；能拉任意的流，只要ffmpeg支持；不是h264/aac都没有关系，ffmpeg能转码。
+
+### DVR视频录制
+
+<details><summary>关键流程</summary>
+
+
+- SrsRecvThread::cycle
+	- SrsRecvThread::do_cycle
+		- while (true) {
+			- trd->pull()
+			- pumper->interrupted <-> SrsPublishRecvThread::interrupted
+			- rtmp->recv_message <-> SrsRtmpServer::recv_message
+				- protocol->recv_message <-> 
+			- pumper->consume <-> SrsPublishRecvThread::consume
+				- SrsRtmpConn::handle\_publish_message
+					- SrsRtmpConn::process_publish_message
+						- SrsSource::on_video
+							- SrsSource::on\_video_imp
+								- SrsOriginHub::on_video
+									- SrsDvr::on_video
+										- SrsDvrSegmentPlan::on_video
+											- SrsDvrPlan::on_video
+												-  SrsDvrSegmenter::write_video
+													-  SrsDvrFlvSegmenter::encode_video
+			- trd->interrupt
+		- }
+
+</details>
+
+![](./doc/dvr.png)
 
 ### Forward集群模式
 
