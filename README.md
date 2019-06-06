@@ -483,6 +483,11 @@
 
 <details><summary>关键流程</summary>
 
+- SrsSource::on_publish，上接rtmp服务器-流转发
+	- SrsOriginHub::on_publish，录制dvr、dash、hls文件，这里以dvr为例
+		- SrsDvr::on_publish
+			- SrsDvrSegmentPlan::on_publish，按segment方式录制
+				- SrsDvrSegmenter::open，创建视频文件，打印dvr stream %s to file %s
 
 - SrsRecvThread::cycle
 	- SrsRecvThread::do_cycle
@@ -509,27 +514,63 @@
 
 ![](./doc/dvr.png)
 
-### Forward集群模式
+### rtmp服务器
+
+- SrsServer::accept_client，收受客户
+	- SrsServer::fd2conn，创建了SrsRtmpConn、SrsHttpApi、SrsResponseOnlyHttpConn对象，这里以SrsRtmpConn对象为例
+	- conns.push_back(conn)，保存连接对象
+	- conn->start()，实际执行SrsRtmpConn::do_cycle函数
+		- SrsRtmpConn::do_cycle
+			- SrsRtmpConn::service_cycle
+				- SrsRtmpConn::stream\_service_cycle
+					- rtmp->identify_client，确认客户类型，由SrsRtmpConnType标识（播放 or 发布），rtmp为SrsRtmpServer对象
+				    - srs_discovery_tc_url，分析rtmp地址
+				    - check_vhost，核对vhost
+				    - rtmp->set_recv_timeout(SRS_CONSTS_RTMP_TMMS)，设置超时时间
+				    - rtmp->set_send_timeout(SRS_CONSTS_RTMP_TMMS)
+				    - SrsSource::fetch\_or_create，创建SrsSource对象，如果存在直接返回pool中的SrsSource对象
+					- 根据客户类型，调用rtmp对象的不同函数
+                    	- 如果是播放，调用playing
+                    	- 如果是发布，调用publishing
+
+#### 流播放
+
+#### 流发布，Forward集群模式
 
 ![](./doc/SRS_Forward模式.jpg)
 
 ![](./doc/SRS_Forward_Nginx模式.jpg)
 
 
-<details><summary>Master节点关键流程</summary>
+<details><summary>master节点发送流流程</summary>
 
-- SrsForwarder::cycle
-  - SrsForwarder::do_cycle
-    - srs_parse_hostport，解析ip和port
-    - srs_generate_rtmp_url，生成rtmp地址
-    - new SrsSimpleRtmpClient，创建了SrsSimpleRtmpClient对象
-    - 调用connect，内部创建了tcp对象和rtmp对象
-      - client->handshake，跟Slave握手
-      - connect_app，建立连接
-      - client->create_stream，创建流
-    - 调用publish，处理编码器推流rtmp
-    - 调用on_forwarder_start，缓存音视频数据
-    - 调用forward，真正发送音视频数据给slave 
+- SrsRtmpConn::publishing，上接“rtmp服务器”
+	- http_hooks_on_publish，发布publish消息
+	- acquire_publish
+		- source->on_publish
+			- hub->on_publish，SrsOriginHub对象
+				- SrsOriginHub::create_forwarders，根据配置文件中的forwarder所带slave地址个数来创建SrsForwarder对象，1个source（流）：N个forwarder（slave地址个数），系统中M个流需要M*N个SrsForwarder对象
+					- forwarder->initialize
+					- forwarder->on_publish
+						- new SrsSTCoroutine("forward", this)
+							- SrsForwarder::cycle
+								- SrsForwarder::do_cycle
+									- srs_parse_hostport，解析ip和port
+								    - srs_generate_rtmp_url，生成rtmp地址
+     								- sdk = new SrsSimpleRtmpClient，**创建rtmp客户端**
+									- sdk->connect，内部创建了tcp对象和rtmp对象
+										- client->handshake，跟Slave握手
+								      	- connect_app，建立连接
+								      	- client->create_stream，创建流
+									- sdk->publish
+									- hub->on_forwarder_start，缓存音视频数据
+									- SrsForwarder::forward，真正发送音视频数据给slave
+				
+	- SrsPublishRecvThread rtrd，创建接收消息对象，其包含
+	- do_publishing
+		- SrsPublishRecvThread
+	- rtrd.stop
+ 
 </details>
 
 ### Edge集群模式
