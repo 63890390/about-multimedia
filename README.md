@@ -258,6 +258,63 @@
 
 </details>
 
+### RTMP协议
+	
+RTMP是Real Time Messaging Protocol（实时消息传输协议）的首字母缩写。该协议基于TCP，是一个协议族，包括RTMP基本协议及RTMPT/RTMPS/RTMPE等多种变种。RTMP是一种设计用来进行实时数据通信的网络协议，主要用来在Flash/AIR平台和支持RTMP协议的流媒体/交互服务器之间进行音视频和数据通信。RTMP协议是一个互联网五层体系结构中应用层的协议。RTMP协议中基本的数据单元称为消息（Message）。当RTMP协议在互联网中传输数据的时候，消息会被拆分成更小的单元，称为块（Chunk）。
+
+流媒体需要经过以下几个步骤：握手，建立网络连接，建立网络流，播放/发布
+
+1. RTMP握手
+
+	- 示意图及数据包
+	
+	![](./doc/rtmp_handshake1.png)
+	
+	![](./doc/rtmp_handshake2.png)
+
+2. 建立网络连接
+
+	- 示意图及数据包
+
+	![](./doc/rtmp_netconnection1.png)
+
+	![](./doc/rtmp_netconnection2.png)
+
+3. 建立网络流
+
+    - 示意图及数据包
+
+	![](./doc/rtmp_netstream1.png)
+
+	![](./doc/rtmp_netstream2.png)
+
+4. 播放
+
+    - 示意图及数据包
+
+	![](./doc/rtmp_play1.png)
+
+	![](./doc/rtmp_play2.png)
+	
+- 块
+
+	- 块消息头，由块基本头中的“fmt”字段决定（总四种）
+		- 类型0
+		- 类型1
+		- 类型2
+		- 类型3
+- 消息
+	- 协议控制消息
+		- Set Chunk Size(Message Type ID=1)
+		- Abort Message(Message Type ID=2)
+		- Acknowledgement(Message Type ID=3)
+		- Window Acknowledgement Size(Message Type ID=5)
+		- Set Peer Bandwidth(Message Type ID=6)
+
+#### Wireshark抓取vlc播放香港卫视，rtmp://live.hkstv.hk.lxdns.com/live/hks1
+
+![](./doc/rtmp2.png)
+
 
 ## 直播技术和SRS开源直播平台
 
@@ -533,16 +590,16 @@
                     	- 如果是播放，调用playing
                     	- 如果是发布，调用publishing
 
-#### 流播放
+#### 流播放（作为rtmp server角色）
 
-#### 流发布，Forward集群模式
+#### 流发布，Forward集群模式（作为rtmp client角色）
 
 ![](./doc/SRS_Forward模式.jpg)
 
 ![](./doc/SRS_Forward_Nginx模式.jpg)
 
 
-<details><summary>master节点发送流流程</summary>
+<details><summary>master节点发送流</summary>
 
 - SrsRtmpConn::publishing，上接“rtmp服务器”
 	- http_hooks_on_publish，发布publish消息
